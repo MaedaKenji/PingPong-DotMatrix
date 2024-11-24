@@ -6,7 +6,6 @@
 			"script": "build",
 			"group": {
 				"kind": "build"
-				
 			},
 			"problemMatcher": [],
 			"label": "npm: build",
@@ -25,4 +24,3 @@
 		}
 	]
 }
-

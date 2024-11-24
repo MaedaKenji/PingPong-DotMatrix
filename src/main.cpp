@@ -2,133 +2,279 @@
 #include <MD_MAX72xx.h>
 #include <SPI.h>
 
-#define HARDWARE_TYPE MD_MAX72XX::PAROLA_HW
-// define HARDWARE_TYPE matrix_parola
-#define MAX_DEVICES 4
-#define MATRIX_WIDTH (8 * MAX_DEVICES) // Total lebar matriks dalam piksel
+// Define the hardware type and connections
+#define HARDWARE_TYPE MD_MAX72XX::FC16_HW
+#define MAX_DEVICES 4 // Number of 8x8 modules in the chain
 
-#define DATA_PIN 4
-#define CS_PIN 2
-#define CLK_PIN 15
+#define DATA_PIN 4 // DIN pin
+#define CS_PIN 2   // CS pin
+#define CLK_PIN 15 // CLK pin
 #define VCC 17
 #define GND 16
-#define POT_PIN 13 // Pin potensiometer
-#define POT_PIN2 26
 
+// Create the matrix object
 MD_Parola matrix_parola = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 MD_MAX72XX matrix = MD_MAX72XX(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 
-int playerY = 0;                   // Y-coordinate of the player (row)
-int player2Y = 0;                  // Y-coordinate of Player 2
-const int playerHeight = 4;        // Height of the player (4 dots)
-const int playerWidth = 1;         // Width of the player (4 dots)
-const int edgePadding = 6;         // Padding (pixels) from each edge
-unsigned long previousMillis = 0;  // Previous time
-const unsigned long interval = 10; // Update interval in ms (100 Hz)
+int playerY = 0 + 7;   // Y-coordinate of the player (row)
+int player2Y = 31 - 7; // Y-coordinate of Player 2
+int rectrow[4] = {2, 3, 4, 5};
+int linep1 = 6;
+int linep2 = 25;
+int linerow[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+int score1 = 0;
+int score2 = 0;
 
-// Scores
-int scorePlayer1 = 0;
-int scorePlayer2 = 0;
+// Segment map for digits in the "tens" position (rows 0-2)
+const int tensDigitMap[10][15][2] = {
+    // Kolom, Baris
+    // Digit 0
+    {
+        {0, 0}, {0, 1}, {0, 2}, {0, 3}, {0, 4}, {1, 0}, {1, 4}, {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {-1, -1}},
 
-// Font data for digits (6x8 pixels, flipped horizontally)
-const uint8_t digits[10][8] = {
-    {0x1F, 0x11, 0x11, 0x11, 0x1F, 0x00, 0x00, 0x00}, // 0
-    {0x00, 0x00, 0x01, 0x3F, 0x00, 0x00, 0x00, 0x00}, // 1
-    {0x11, 0x19, 0x15, 0x13, 0x11, 0x00, 0x00, 0x00}, // 2
-    {0x11, 0x11, 0x15, 0x15, 0x0E, 0x00, 0x00, 0x00}, // 3
-    {0x03, 0x05, 0x09, 0x3F, 0x01, 0x00, 0x00, 0x00}, // 4
-    {0x1E, 0x15, 0x15, 0x15, 0x12, 0x00, 0x00, 0x00}, // 5
-    {0x1F, 0x15, 0x15, 0x15, 0x10, 0x00, 0x00, 0x00}, // 6
-    {0x10, 0x10, 0x1F, 0x11, 0x12, 0x00, 0x00, 0x00}, // 7
-    {0x1F, 0x15, 0x15, 0x15, 0x1F, 0x00, 0x00, 0x00}, // 8
-    {0x1E, 0x15, 0x15, 0x15, 0x1F, 0x00, 0x00, 0x00}  // 9
+    // Digit 1
+    {
+
+        {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {-1, -1}},
+
+    // Digit 2
+    {
+        {0, 0}, {1, 0}, {2, 0}, {2, 1}, {0, 2}, {1, 2}, {2, 2}, {0, 3}, {0, 4}, {1, 4}, {2, 4}},
+
+    // Digit 3
+    {
+        {0, 0}, {1, 0}, {2, 0}, {2, 1}, {2, 2}, {1, 2}, {0, 2}, {2, 3}, {2, 4}, {1, 4}, {0, 4}, {-1, -1}},
+
+    // Digit 4
+    {
+        {0, 0}, {2, 0}, // Vertical line on the left
+        {0, 1},
+        {0, 2}, // Middle connection
+        {2, 1},
+        {1, 2},
+        {2, 2}, // Horizontal line in the middle
+        {2, 3},
+        {2, 4},  // Vertical line on the right
+        {-1, -1} // End of valid segments
+    },
+
+    // Digit 5
+    {
+        {0, 0}, {1, 0}, {2, 0}, {0, 1}, {0, 2}, {1, 2}, {2, 2}, {2, 3}, {2, 4}, {1, 4}, {0, 4}, {-1, -1}},
+
+    // Digit 6
+    {
+        {1, 0}, {0, 0}, {2, 0}, {0, 1}, {0, 2}, {1, 2}, {2, 2}, {2, 3}, {2, 4}, {1, 4}, {0, 4}, {0, 3}},
+
+    // Digit 7
+    {
+        {0, 0}, {1, 0}, {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4}, {-1, -1}},
+
+    // Digit 8
+    {
+        {0, 0}, {1, 0}, {2, 0}, {0, 1}, {0, 2}, {1, 2}, {2, 2}, {0, 3}, {0, 4}, {1, 4}, {2, 4}, {2, 1}, {2, 3}},
+
+    // Digit 9
+    {
+        {0, 0}, {1, 0}, {2, 0}, {0, 1}, {0, 2}, {1, 2}, {2, 2}, {2, 3}, {2, 4}, {1, 4}, {0, 4}, {2, 1}}
+
 };
 
-void rotateDigit90(const uint8_t original[5], uint8_t rotated[8])
-{
-  for (int row = 0; row < 8; row++)
-  {
-    rotated[row] = 0; // Reset row
-    for (int col = 0; col < 5; col++)
+const int unitsDigitMap[10][15][2] = {
+    // Kolom, Baris
+    // Digit 0
     {
-      if (original[col] & (1 << row))
-      {                                   // Cek bit di kolom asli
-        rotated[row] |= (1 << (4 - col)); // Geser ke posisi baru
-      }
-    }
-  }
-}
+        {5, 0}, {5, 1}, {5, 2}, {5, 3}, {5, 4}, {6, 4}, {7, 0}, {7, 1}, {7, 2}, {7, 3}, {7, 4}, {6, 0}, {-1, -1}},
 
-// Contoh untuk memutar semua angka
-void rotateAllDigits(const uint8_t digits[10][5], uint8_t digits_rotated[10][8])
-{
-  for (int i = 0; i < 10; i++)
-  {
-    rotateDigit90(digits[i], digits_rotated[i]);
-  }
-}
+    // Digit 1
+    {
+        {7, 0}, {7, 1}, {7, 2}, {7, 3}, {7, 4}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}},
 
-void drawDigitVertical(int digit, int x, int y)
+    // Digit 2
+    {
+        {5, 0}, {6, 0}, {7, 0}, {7, 1}, {5, 2}, {6, 2}, {7, 2}, {5, 3}, {5, 4}, {6, 4}, {7, 4}, {-1, -1}, {-1, -1}},
+
+    // Digit 3
+    {
+        {5, 0}, {6, 0}, {7, 0}, {7, 1}, {7, 2}, {6, 2}, {5, 2}, {7, 3}, {7, 4}, {6, 4}, {5, 4}, {-1, -1}, {-1, -1}},
+
+    // Digit 4
+    {
+        {5, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {7, 1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}},
+
+    // Digit 5
+    {
+        {5, 0}, {6, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {6, 4}, {5, 4}, {-1, -1}, {-1, -1}},
+
+    // Digit 6
+    {
+        {6, 0}, {5, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {6, 4}, {5, 4}, {5, 3}, {-1, -1}},
+
+    // Digit 7
+    {
+        {5, 0}, {6, 0}, {7, 0}, {7, 1}, {7, 2}, {7, 3}, {7, 4}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}},
+
+    // Digit 8
+    {
+        {5, 0}, {6, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {5, 3}, {5, 4}, {6, 4}, {7, 4}, {7, 1}, {7, 3}, {-1, -1}},
+
+    // Digit 9
+    {
+        {5, 0}, {6, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {6, 4}, {5, 4}, {7, 1}, {-1, -1}}};
+
+void displayUnitsDigitLeft(MD_MAX72XX *matrix, int digit)
 {
   if (digit < 0 || digit > 9)
-    return; // Ensure valid digit
-  for (int col = 0; col < 5; col++)
+    return; // Invalid digit
+
+  for (int segment = 0; segment < 15; segment++)
   {
-    for (int row = 0; row < 8; row++)
-    {
-      bool pixel = digits[digit][col] & (1 << row);
-      matrix.setPoint(y + row, x + col, pixel);
-    }
+    int row = unitsDigitMap[digit][segment][0];
+    int col = unitsDigitMap[digit][segment][1];
+
+    if (row == -1 && col == -1)
+      break;
+
+    matrix->setPoint(row, col, true);
   }
 }
 
-// Draw a digit rotated 90 degrees
-void drawDigit(int digit, int x, int y)
+void displayUnitsDigitRight(MD_MAX72XX *matrix, int digit)
 {
   if (digit < 0 || digit > 9)
-    return; // Ensure valid digit
+    return; // Invalid digit
+    
 
-  uint8_t rotated[8];                    // Store rotated digit
-  rotateDigit90(digits[digit], rotated); // Rotate the digit
-
-  for (int row = 0; row < 8; row++)
+  for (int segment = 0; segment < 15; segment++)
   {
-    for (int col = 0; col < 5; col++)
+
+    int originalRow = unitsDigitMap[digit][segment][0];
+    int originalCol = unitsDigitMap[digit][segment][1];
+
+    // Jika elemen asli adalah {-1, -1}, maka hentikan iterasi
+    if (originalRow == -1 && originalCol == -1)
+      break;
+
+    // Transformasi flip
+    int row = 7 - originalRow;
+    int col = 31 - originalCol;
+
+    // Pastikan row dan col valid sebelum menyalakan titik
+    if (row >= 0 && row < 8 && col >= 0 && col < 32)
     {
-      if (rotated[row] & (1 << col))
-      {                                          // Check if the bit is set
-        matrix.setPoint(y + row, x + col, true); // Draw the pixel
-      }
+      matrix->setPoint(row, col, true);
     }
+
+    // Serial.print("Lighting up row: ");
+    // Serial.print(row);
+    // Serial.print(", col: ");
+    // Serial.println(col);
+    // delay(1000);
   }
 }
-// Draw scores on the matrix
-// Draw scores on the matrix
-void drawScores()
+
+void displayTensDigitLeft(MD_MAX72XX *matrix, int digit)
 {
-  // Clear only the score area (optional)
-  matrix.clear();
+  if (digit < 0 || digit > 9)
+    return; // Invalid digit
 
-  // Player 1's score on the left
-  drawDigit(scorePlayer1 / 10, edgePadding, 0);     // Tens place (top)
-  drawDigit(scorePlayer1 % 10, edgePadding + 6, 0); // Ones place (below tens)
-
-  // Player 2's score on the right
-  drawDigit(scorePlayer2 / 10, MATRIX_WIDTH - edgePadding - 5, 0);  // Tens place (top)
-  drawDigit(scorePlayer2 % 10, MATRIX_WIDTH - edgePadding - 11, 0); // Ones place (below tens)
-}
-
-void drawPlayer(int yPosition, int xOffset)
-{
-  for (int row = 0; row < playerHeight; row++)
+  for (int segment = 0; segment < 15; segment++)
   {
-    if (yPosition + row < 8)
-    { // Ensure within bounds of a single matrix
-      matrix.setPoint(yPosition + row, xOffset, true);
-    }
+    int row = tensDigitMap[digit][segment][0];
+    int col = tensDigitMap[digit][segment][1];
+
+    if (row == -1 && col == -1)
+      break;
+
+    matrix->setPoint(row, col, true);
+    // Serial.print("Lighting up row: ");
+    // Serial.print(row);
+    // Serial.print(", col: ");
+    // Serial.println(col);
+    // delay(1000);
+
+    // if (row != -1 && col != -1)
+    // {
+    //   matrix->clear();
+    //   Serial.print("Lighting up row: ");
+    //   Serial.print(row);
+    //   Serial.print(", col: ");
+    //   Serial.println(col);
+
+    //   matrix->setPoint(row, col, true);
+    //   delay(1000);
+    // }
   }
 }
 
+void displayTensDigitRight(MD_MAX72XX *matrix, int digit)
+{
+  if (digit < 0 || digit > 9)
+    return; // Invalid digit
+
+  for (int segment = 0; segment < 15; segment++)
+  {
+    int row = tensDigitMap[digit][segment][0];
+    int col = tensDigitMap[digit][segment][1];
+
+    if (row == -1 && col == -1)
+      break;
+    
+    // matrix->clear();
+    matrix->setPoint(7-row, 31 - col, true);
+    // Serial.print("Lighting up row: ");
+    // Serial.print(7-row);
+    // Serial.print(", col: ");
+    // Serial.println(31 - col);
+    // delay(1000);
+
+  }
+}
+
+// Score
+void displayLeftScore(MD_MAX72XX *matrix, int score)
+{
+  if (score < 0 || score > 30)
+    return; // Invalid score
+
+  if (score >= 0 && score <= 9)
+  {
+    // Display score as a single-digit (use the tens position)
+    displayTensDigitLeft(matrix, score);
+  }
+  else if (score >= 10 && score <= 30)
+  {
+    // Split the score into tens and units
+    int tens = score / 10;
+    int units = score % 10;
+
+    // Display tens and units in their respective positions
+    displayTensDigitLeft(matrix, tens);
+    displayUnitsDigitLeft(matrix, units);
+  }
+}
+
+void displayRightScore(MD_MAX72XX *matrix, int score)
+{
+  if (score < 0 || score > 30)
+    return; // Invalid score
+
+  if (score >= 0 && score <= 9)
+  {
+    // Display score as a single-digit (use the tens position)
+    displayTensDigitRight(matrix, score);
+  }
+  else if (score >= 10 && score <= 30)
+  {
+    // Split the score into tens and units
+    int tens = score / 10;
+    int units = score % 10;
+
+    // Display tens and units in their respective positions
+    displayTensDigitRight(matrix, tens);
+    displayUnitsDigitRight(matrix, units);
+  }
+}
 void testDots()
 {
   for (uint8_t device = 0; device < MAX_DEVICES; device++)
@@ -137,12 +283,21 @@ void testDots()
     {
       for (uint8_t col = 0; col < 8 * 4; col++)
       {
-        matrix.setPoint(row, col, true);
+        matrix.setPoint(row, col, true); // Turn on each dot for each device
       }
     }
   }
   delay(2000);
   matrix.clear();
+}
+
+void drawLine(MD_MAX72XX *matrix, int linerow[], int linep1, int linep2)
+{
+  for (int i = 0; i < 8; i++)
+  {
+    matrix->setPoint(linerow[i], linep1, true);
+    matrix->setPoint(linerow[i], linep2, true);
+  }
 }
 
 void setup()
@@ -152,42 +307,56 @@ void setup()
   digitalWrite(VCC, HIGH);
   pinMode(GND, OUTPUT);
   digitalWrite(GND, LOW);
-
-  matrix.begin();
-  matrix.control(MD_MAX72XX::INTENSITY, 5); // Set brightness
-  matrix.clear();                           // Clear the matrix
-
-  // matrix_parola.begin();
+  matrix_parola.begin(); // Initialize the parola
   // testDots();
-  // matrix_parola.setIntensity(5);
+  matrix_parola.setIntensity(1);
   // matrix_parola.displayText("5024221021 - Agus Fuad Mudhofar", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+
+  MD_MAX72XX *matrix = matrix_parola.getGraphicObject(); // Get the graphics object
+  // setPoint(row, col, true?); column 0 - 31, row 0 - 7
+  // Draw rectangle 1 (column 0+7)
+
+  // displayTensDigitLeft(matrix, 2);  // Tens digit (rows 0-2)
+  // displayUnitsDigitLeft(matrix, 0); // Units digit (rows 5-7)
 }
 
 void loop()
 {
-  unsigned long currentMillis = millis();
-
-  // Perbarui layar hanya jika interval waktu tercapai
-  if (currentMillis - previousMillis >= interval)
+  MD_MAX72XX *matrix = matrix_parola.getGraphicObject();
+  matrix->clear();
+  for (int i = 0; i < 4; i++)
   {
-    previousMillis = currentMillis;
-
-    int potValue = analogRead(POT_PIN);                    // Read pot value
-    int potValue2 = analogRead(POT_PIN2);                  // Read pot for Player 2
-    playerY = map(potValue, 0, 4095, 0, 8 - playerHeight); // Map pot value to display rows
-    player2Y = map(potValue2, 0, 4095, 0, 8 - playerHeight);
-
-    drawPlayer(playerY, edgePadding);                               // Draw player at the new position
-    drawPlayer(player2Y, MATRIX_WIDTH - edgePadding - playerWidth); // Player 2 on the right (xOffset = rightmost matrix)
-
-    matrix.clear();
-    drawScores();                                         // Draw the scores
-    drawPlayer(playerY, edgePadding);                     // Draw Player 1
-    drawPlayer(player2Y, MATRIX_WIDTH - edgePadding - 1); // Draw Player 2
-
-    // if (matrix_parola.displayAnimate())
-    // {
-    //   matrix_parola.displayReset();
-    // }
+    matrix->setPoint(rectrow[i], playerY, true); // Turn on each dot
   }
+
+  // Draw rectangle 2 (column 31-7)
+  for (int i = 0; i < 4; i++)
+  {
+    matrix->setPoint(rectrow[i], player2Y, true);
+  }
+
+  drawLine(matrix, linerow, linep1, linep2);
+  
+
+  for (int i = 0; i < 10; i++)
+  {
+    displayTensDigitLeft(matrix, i);
+    Serial.println("Display Units Digit Left : " + String(i));
+    delay(1000);
+    matrix->clear();
+    displayUnitsDigitLeft(matrix, i); // Units digit (rows 5-7)
+    Serial.println("Display Units Digit Left : " + String(i));
+    delay(1000);
+    matrix->clear();
+    displayTensDigitRight(matrix, i); // Tens digit (rows 0-2)
+    Serial.println("Display Tens Digit Right : " + String(i));
+    delay(1000);
+    matrix->clear();
+    displayUnitsDigitRight(matrix, i); // Units digit (rows 5-7)
+    Serial.println("Display Units Digit Right : " + String(i));
+    delay(1000);
+    matrix->clear();
+  }
+  matrix->clear();
+  delay(5);
 }

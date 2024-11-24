@@ -8,8 +8,8 @@
   },
   "scripts": {
     "build": "C:\\Users\\agusf\\.platformio\\penv\\Scripts\\platformio.exe run",
-    "uploade": "C:\\Users\\agusf\\.platformio\\penv\\Scripts\\platformio.exe run --target upload"
-
+    "upload": "C:\\Users\\agusf\\.platformio\\penv\\Scripts\\platformio.exe run --target upload",
+    "monitor": "C:\\Users\\agusf\\.platformio\\penv\\Scripts\\platformio.exe device monitor"
   },
   "author": "",
   "license": "ISC",
