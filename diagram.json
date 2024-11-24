@@ -10,6 +10,20 @@
       "top": -105,
       "left": -146.16,
       "attrs": { "chain": "4" }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot1",
+      "top": 53,
+      "left": 344.6,
+      "attrs": { "travelLength": "30" }
+    },
+    {
+      "type": "wokwi-slide-potentiometer",
+      "id": "pot2",
+      "top": -100.6,
+      "left": -385,
+      "attrs": { "travelLength": "30" }
     }
   ],
   "connections": [
@@ -19,7 +33,13 @@
     [ "matrix1:DIN", "esp:4", "green", [ "h124.8", "v-28.8" ] ],
     [ "matrix1:CS", "esp:2", "green", [ "h105.6", "v-48", "h9.6" ] ],
     [ "matrix1:CLK", "esp:15", "green", [ "h115.2", "v-38.4" ] ],
-    [ "esp:17", "matrix1:V+", "green", [ "h-105.45", "v96" ] ]
+    [ "esp:17", "matrix1:V+", "red", [ "h-105.45", "v96" ] ],
+    [ "esp:GND.3", "pot1:GND", "black", [ "h163.2", "v211.2" ] ],
+    [ "pot1:SIG", "esp:13", "green", [ "h-67.2", "v-144.8" ] ],
+    [ "pot1:VCC", "esp:17", "red", [ "h0", "v-86.4", "h124.8", "v-96" ] ],
+    [ "pot2:GND", "matrix1:GND.2", "black", [ "v0" ] ],
+    [ "pot2:VCC", "matrix1:V+.2", "red", [ "h0", "v-28.8" ] ],
+    [ "pot2:SIG", "esp:26", "green", [ "h0", "v56.8", "h643.2", "v-115.2" ] ]
   ],
   "dependencies": {}
 }

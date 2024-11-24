@@ -1,0 +1,17 @@
+{
+  "name": "wokwi-dot-matrix",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "build": "C:\\Users\\agusf\\.platformio\\penv\\Scripts\\platformio.exe run",
+    "uploade": "C:\\Users\\agusf\\.platformio\\penv\\Scripts\\platformio.exe run --target upload"
+
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

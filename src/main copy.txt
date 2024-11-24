@@ -18,11 +18,12 @@
 MD_Parola matrix_parola = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 MD_MAX72XX matrix = MD_MAX72XX(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
 
-int playerY = 0;                   // Y-coordinate of the player (row)
-int player2Y = 0;                  // Y-coordinate of Player 2
-const int playerHeight = 4;        // Height of the player (4 dots)
-const int playerWidth = 1;         // Width of the player (4 dots)
-const int edgePadding = 6;         // Padding (pixels) from each edge
+
+int playerY = 0;            // Y-coordinate of the player (row)
+int player2Y = 0;           // Y-coordinate of Player 2
+const int playerHeight = 4; // Height of the player (4 dots)
+const int playerWidth = 1;  // Width of the player (4 dots)
+const int edgePadding = 6;  // Padding (pixels) from each edge
 unsigned long previousMillis = 0;  // Previous time
 const unsigned long interval = 10; // Update interval in ms (100 Hz)
 
@@ -83,26 +84,21 @@ void drawDigitVertical(int digit, int x, int y)
 }
 
 // Draw a digit rotated 90 degrees
-void drawDigit(int digit, int x, int y)
-{
-  if (digit < 0 || digit > 9)
-    return; // Ensure valid digit
+void drawDigit(int digit, int x, int y) {
+  if (digit < 0 || digit > 9) return; // Ensure valid digit
 
-  uint8_t rotated[8];                    // Store rotated digit
+  uint8_t rotated[8]; // Store rotated digit
   rotateDigit90(digits[digit], rotated); // Rotate the digit
 
-  for (int row = 0; row < 8; row++)
-  {
-    for (int col = 0; col < 5; col++)
-    {
-      if (rotated[row] & (1 << col))
-      {                                          // Check if the bit is set
+  for (int row = 0; row < 8; row++) {
+    for (int col = 0; col < 5; col++) {
+      if (rotated[row] & (1 << col)) { // Check if the bit is set
         matrix.setPoint(y + row, x + col, true); // Draw the pixel
       }
     }
   }
 }
-// Draw scores on the matrix
+  // Draw scores on the matrix
 // Draw scores on the matrix
 void drawScores()
 {
@@ -118,76 +114,76 @@ void drawScores()
   drawDigit(scorePlayer2 % 10, MATRIX_WIDTH - edgePadding - 11, 0); // Ones place (below tens)
 }
 
-void drawPlayer(int yPosition, int xOffset)
-{
-  for (int row = 0; row < playerHeight; row++)
+  void drawPlayer(int yPosition, int xOffset)
   {
-    if (yPosition + row < 8)
-    { // Ensure within bounds of a single matrix
-      matrix.setPoint(yPosition + row, xOffset, true);
-    }
-  }
-}
-
-void testDots()
-{
-  for (uint8_t device = 0; device < MAX_DEVICES; device++)
-  {
-    for (uint8_t row = 0; row < 8 * 4; row++)
+    for (int row = 0; row < playerHeight; row++)
     {
-      for (uint8_t col = 0; col < 8 * 4; col++)
-      {
-        matrix.setPoint(row, col, true);
+      if (yPosition + row < 8)
+      { // Ensure within bounds of a single matrix
+        matrix.setPoint(yPosition + row, xOffset, true);
       }
     }
   }
-  delay(2000);
-  matrix.clear();
-}
 
-void setup()
-{
-  Serial.begin(9600);
-  pinMode(VCC, OUTPUT);
-  digitalWrite(VCC, HIGH);
-  pinMode(GND, OUTPUT);
-  digitalWrite(GND, LOW);
-
-  matrix.begin();
-  matrix.control(MD_MAX72XX::INTENSITY, 5); // Set brightness
-  matrix.clear();                           // Clear the matrix
-
-  // matrix_parola.begin();
-  // testDots();
-  // matrix_parola.setIntensity(5);
-  // matrix_parola.displayText("5024221021 - Agus Fuad Mudhofar", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
-}
-
-void loop()
-{
-  unsigned long currentMillis = millis();
-
-  // Perbarui layar hanya jika interval waktu tercapai
-  if (currentMillis - previousMillis >= interval)
+  void testDots()
   {
-    previousMillis = currentMillis;
-
-    int potValue = analogRead(POT_PIN);                    // Read pot value
-    int potValue2 = analogRead(POT_PIN2);                  // Read pot for Player 2
-    playerY = map(potValue, 0, 4095, 0, 8 - playerHeight); // Map pot value to display rows
-    player2Y = map(potValue2, 0, 4095, 0, 8 - playerHeight);
-
-    drawPlayer(playerY, edgePadding);                               // Draw player at the new position
-    drawPlayer(player2Y, MATRIX_WIDTH - edgePadding - playerWidth); // Player 2 on the right (xOffset = rightmost matrix)
-
+    for (uint8_t device = 0; device < MAX_DEVICES; device++)
+    {
+      for (uint8_t row = 0; row < 8 * 4; row++)
+      {
+        for (uint8_t col = 0; col < 8 * 4; col++)
+        {
+          matrix.setPoint(row, col, true);
+        }
+      }
+    }
+    delay(2000);
     matrix.clear();
-    drawScores();                                         // Draw the scores
-    drawPlayer(playerY, edgePadding);                     // Draw Player 1
-    drawPlayer(player2Y, MATRIX_WIDTH - edgePadding - 1); // Draw Player 2
-
-    // if (matrix_parola.displayAnimate())
-    // {
-    //   matrix_parola.displayReset();
-    // }
   }
-}
+
+  void setup()
+  {
+    Serial.begin(9600);
+    pinMode(VCC, OUTPUT);
+    digitalWrite(VCC, HIGH);
+    pinMode(GND, OUTPUT);
+    digitalWrite(GND, LOW);
+
+    matrix.begin();
+    matrix.control(MD_MAX72XX::INTENSITY, 5); // Set brightness
+    matrix.clear();                           // Clear the matrix
+
+    // matrix_parola.begin();
+    // testDots();
+    // matrix_parola.setIntensity(5);
+    // matrix_parola.displayText("5024221021 - Agus Fuad Mudhofar", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+  }
+
+  void loop()
+  {
+    unsigned long currentMillis = millis();
+
+    // Perbarui layar hanya jika interval waktu tercapai
+    if (currentMillis - previousMillis >= interval)
+    {
+      previousMillis = currentMillis;
+
+      int potValue = analogRead(POT_PIN);                    // Read pot value
+      int potValue2 = analogRead(POT_PIN2);                  // Read pot for Player 2
+      playerY = map(potValue, 0, 4095, 0, 8 - playerHeight); // Map pot value to display rows
+      player2Y = map(potValue2, 0, 4095, 0, 8 - playerHeight);
+
+      drawPlayer(playerY, edgePadding);                               // Draw player at the new position
+      drawPlayer(player2Y, MATRIX_WIDTH - edgePadding - playerWidth); // Player 2 on the right (xOffset = rightmost matrix)
+
+      matrix.clear();
+      drawScores();                                         // Draw the scores
+      drawPlayer(playerY, edgePadding);                     // Draw Player 1
+      drawPlayer(player2Y, MATRIX_WIDTH - edgePadding - 1); // Draw Player 2
+
+      // if (matrix_parola.displayAnimate())
+      // {
+      //   matrix_parola.displayReset();
+      // }
+    }
+  }
