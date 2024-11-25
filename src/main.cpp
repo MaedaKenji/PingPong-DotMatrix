@@ -11,6 +11,8 @@
 #define CLK_PIN 15 // CLK pin
 #define VCC 17
 #define GND 16
+#define POT_PLAYER1 A0 // Pin analog untuk potensiometer pemain 1
+#define POT_PLAYER2 A10 // Pin analog untuk potensiometer pemain 2
 
 // Create the matrix object
 MD_Parola matrix_parola = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
@@ -18,12 +20,29 @@ MD_MAX72XX matrix = MD_MAX72XX(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEV
 
 int playerY = 0 + 7;   // Y-coordinate of the player (row)
 int player2Y = 31 - 7; // Y-coordinate of Player 2
+int player1Position = 0; // Posisi awal pemain 1
+int player2Position = 0; // Posisi awal pemain 2
 int rectrow[4] = {2, 3, 4, 5};
 int linep1 = 6;
 int linep2 = 25;
 int linerow[8] = {0, 1, 2, 3, 4, 5, 6, 7};
 int score1 = 0;
 int score2 = 0;
+
+// Variabel untuk bola
+int ballX = 0; // Posisi awal X
+int ballY = 0; // Posisi awal Y
+int dx = 1;    // Arah horizontal (1: ke kanan, -1: ke kiri)
+int dy = 1;    // Arah vertikal (1: ke bawah, -1: ke atas)
+
+// Batas area
+const int minCol = 6;  // Kolom minimal (7)
+const int maxCol = 25; // Kolom maksimal (26)
+const int maxRows = 8; // Baris maksimal (8 baris)
+
+// Variabel untuk skor
+int scoreLeft = 0;  // Skor pemain kiri
+int scoreRight = 0; // Skor pemain kanan
 
 // Segment map for digits in the "tens" position (rows 0-2)
 const int tensDigitMap[10][15][2] = {
@@ -102,7 +121,7 @@ const int unitsDigitMap[10][15][2] = {
     {
         {5, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {7, 1}, {-1, -1}, {-1, -1}, {-1, -1}, {-1, -1}},
 
-    // Digit 5
+    // Digit\ 5
     {
         {5, 0}, {6, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {6, 4}, {5, 4}, {-1, -1}, {-1, -1}},
 
@@ -121,6 +140,143 @@ const int unitsDigitMap[10][15][2] = {
     // Digit 9
     {
         {5, 0}, {6, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {6, 4}, {5, 4}, {7, 1}, {-1, -1}}};
+
+void resetBall();
+void drawLine(MD_MAX72XX *matrix, int *linerow, int linep1, int linep2);
+
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(VCC, OUTPUT);
+  digitalWrite(VCC, HIGH);
+  pinMode(GND, OUTPUT);
+  digitalWrite(GND, LOW);
+  matrix_parola.begin(); // Initialize the parola
+  // testDots();
+  matrix_parola.setIntensity(1);
+  // matrix_parola.displayText("5024221021 - Agus Fuad Mudhofar", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+
+  MD_MAX72XX *matrix = matrix_parola.getGraphicObject(); // Get the graphics object
+  // setPoint(row, col, true?); column 0 - 31, row 0 - 7
+  // Draw rectangle 1 (column 0+7)
+
+  // displayTensDigitLeft(matrix, 2);  // Tens digit (rows 0-2)
+  // displayUnitsDigitLeft(matrix, 0); // Units digit (rows 5-7)
+}
+
+void loop()
+{
+  MD_MAX72XX *matrix = matrix_parola.getGraphicObject();
+  matrix->clear();
+  // player1Position = map(analogRead(POT_PLAYER1), 0, 4095, 0, 4); // Rentang 0-3
+  // player2Position = map(analogRead(POT_PLAYER2), 0, 4095, 0, 4); // Rentang 0-3
+
+  // for (int i = 0; i < 4; i++)
+  // {
+  //   matrix->setPoint(rectrow[i], playerY, true); // Turn on each dot
+  // }
+
+  // // Draw rectangle 2 (column 31-7)
+  // for (int i = 0; i < 4; i++)
+  // {
+  //   matrix->setPoint(rectrow[i], player2Y, true);
+  // }
+
+  // drawLine(matrix, linerow, linep1, linep2);
+
+  // Update posisi bola
+  ballX += dx;
+  ballY += dy;
+
+  
+  // Deteksi pantulan pada tepi atas dan bawah
+  if (ballY <= 0 || ballY >= maxRows - 1)
+    dy = -dy;
+
+  // Deteksi pantulan pada pemain 1
+  if (ballX == playerY && ballY >= rectrow[0] && ballY <= rectrow[3])
+  {
+    dx = -dx; // Balik arah horizontal
+    Serial.println("Pantul dari pemain 1!");
+  }
+
+  // Deteksi pantulan pada pemain 2
+  if (ballX == player2Y && ballY >= rectrow[0] && ballY <= rectrow[3])
+  {
+    dx = -dx; // Balik arah horizontal
+    Serial.println("Pantul dari pemain 2!");
+  }
+
+  // Deteksi gol
+  if (ballX < minCol)
+  {
+    // Gol ke gawang kiri
+    scoreRight++;
+    resetBall();
+    Serial.println("Gol ke gawang kiri! Skor kanan: " + String(scoreRight));
+    Serial.println("Row: " + String(ballY) + ", Col: " + String(ballX));
+  }
+  else if (ballX > maxCol)
+  {
+    // Gol ke gawang kanan
+    scoreLeft++;
+    resetBall();
+    Serial.println("Gol ke gawang kanan! Skor kiri: " + String(scoreLeft));
+    Serial.println("Row: " + String(ballY) + ", Col: " + String(ballX));
+  }
+
+  // Tampilkan bola baru
+  matrix->setPoint(ballY, ballX, true);
+
+  // // Gambar pemain 1 berdasarkan posisi
+  for (int i = 0; i < 4; i++)
+  {
+    if (player1Position + i < 8)
+    { // Pastikan tidak keluar dari layar
+      matrix->setPoint(rectrow[i] + player1Position, playerY, true);
+    }
+  }
+
+  // Gambar pemain 2 berdasarkan posisi
+  for (int i = 0; i < 4; i++)
+  {
+    if (player2Position + i < 8)
+    { // Pastikan tidak keluar dari layar
+      matrix->setPoint(rectrow[i] + player2Position, player2Y, true);
+    }
+  }
+
+  // for (int i = 0; i < 10; i++)
+  // {
+  //   displayTensDigitLeft(matrix, i);
+  //   Serial.println("Display Units Digit Left : " + String(i));
+  //   delay(1000);
+  //   matrix->clear();
+  //   displayUnitsDigitLeft(matrix, i); // Units digit (rows 5-7)
+  //   Serial.println("Display Units Digit Left : " + String(i));
+  //   delay(1000);
+  //   matrix->clear();
+  //   displayTensDigitRight(matrix, i); // Tens digit (rows 0-2)
+  //   Serial.println("Display Tens Digit Right : " + String(i));
+  //   delay(1000);
+  //   matrix->clear();
+  //   displayUnitsDigitRight(matrix, i); // Units digit (rows 5-7)
+  //   Serial.println("Display Units Digit Right : " + String(i));
+  //   delay(1000);
+  //   matrix->clear();
+  // }
+  delay(200);
+}
+
+// Reset posisi bola setelah gol
+void resetBall()
+{
+  ballX = (minCol + maxCol) / 2;     // Posisikan bola di tengah kolom
+  ballY = maxRows / 2;               // Posisikan bola di tengah baris
+  dx = (random(0, 2) == 0) ? 1 : -1; // Random arah horizontal
+  dy = (random(0, 2) == 0) ? 1 : -1; // Random arah vertikal
+}
 
 void displayUnitsDigitLeft(MD_MAX72XX *matrix, int digit)
 {
@@ -143,7 +299,6 @@ void displayUnitsDigitRight(MD_MAX72XX *matrix, int digit)
 {
   if (digit < 0 || digit > 9)
     return; // Invalid digit
-    
 
   for (int segment = 0; segment < 15; segment++)
   {
@@ -219,15 +374,14 @@ void displayTensDigitRight(MD_MAX72XX *matrix, int digit)
 
     if (row == -1 && col == -1)
       break;
-    
+
     // matrix->clear();
-    matrix->setPoint(7-row, 31 - col, true);
+    matrix->setPoint(7 - row, 31 - col, true);
     // Serial.print("Lighting up row: ");
     // Serial.print(7-row);
     // Serial.print(", col: ");
     // Serial.println(31 - col);
     // delay(1000);
-
   }
 }
 
@@ -298,65 +452,4 @@ void drawLine(MD_MAX72XX *matrix, int linerow[], int linep1, int linep2)
     matrix->setPoint(linerow[i], linep1, true);
     matrix->setPoint(linerow[i], linep2, true);
   }
-}
-
-void setup()
-{
-  Serial.begin(9600);
-  pinMode(VCC, OUTPUT);
-  digitalWrite(VCC, HIGH);
-  pinMode(GND, OUTPUT);
-  digitalWrite(GND, LOW);
-  matrix_parola.begin(); // Initialize the parola
-  // testDots();
-  matrix_parola.setIntensity(1);
-  // matrix_parola.displayText("5024221021 - Agus Fuad Mudhofar", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
-
-  MD_MAX72XX *matrix = matrix_parola.getGraphicObject(); // Get the graphics object
-  // setPoint(row, col, true?); column 0 - 31, row 0 - 7
-  // Draw rectangle 1 (column 0+7)
-
-  // displayTensDigitLeft(matrix, 2);  // Tens digit (rows 0-2)
-  // displayUnitsDigitLeft(matrix, 0); // Units digit (rows 5-7)
-}
-
-void loop()
-{
-  MD_MAX72XX *matrix = matrix_parola.getGraphicObject();
-  matrix->clear();
-  for (int i = 0; i < 4; i++)
-  {
-    matrix->setPoint(rectrow[i], playerY, true); // Turn on each dot
-  }
-
-  // Draw rectangle 2 (column 31-7)
-  for (int i = 0; i < 4; i++)
-  {
-    matrix->setPoint(rectrow[i], player2Y, true);
-  }
-
-  drawLine(matrix, linerow, linep1, linep2);
-  
-
-  for (int i = 0; i < 10; i++)
-  {
-    displayTensDigitLeft(matrix, i);
-    Serial.println("Display Units Digit Left : " + String(i));
-    delay(1000);
-    matrix->clear();
-    displayUnitsDigitLeft(matrix, i); // Units digit (rows 5-7)
-    Serial.println("Display Units Digit Left : " + String(i));
-    delay(1000);
-    matrix->clear();
-    displayTensDigitRight(matrix, i); // Tens digit (rows 0-2)
-    Serial.println("Display Tens Digit Right : " + String(i));
-    delay(1000);
-    matrix->clear();
-    displayUnitsDigitRight(matrix, i); // Units digit (rows 5-7)
-    Serial.println("Display Units Digit Right : " + String(i));
-    delay(1000);
-    matrix->clear();
-  }
-  matrix->clear();
-  delay(5);
 }
