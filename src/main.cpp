@@ -11,8 +11,10 @@
 #define CLK_PIN 15 // CLK pin
 #define VCC 17
 #define GND 16
-#define POT_PLAYER1 A0 // Pin analog untuk potensiometer pemain 1
-#define POT_PLAYER2 A10 // Pin analog untuk potensiometer pemain 2
+#define POT_PLAYER1 34 // Pin analog untuk potensiometer pemain 1
+#define POT_PLAYER2 35 // Pin analog untuk potensiometer pemain 2
+int vcc = 5;
+int gnd = 18;
 
 // Create the matrix object
 MD_Parola matrix_parola = MD_Parola(HARDWARE_TYPE, DATA_PIN, CLK_PIN, CS_PIN, MAX_DEVICES);
@@ -22,12 +24,16 @@ int playerY = 0 + 7;   // Y-coordinate of the player (row)
 int player2Y = 31 - 7; // Y-coordinate of Player 2
 int player1Position = 0; // Posisi awal pemain 1
 int player2Position = 0; // Posisi awal pemain 2
-int rectrow[4] = {2, 3, 4, 5};
+int rectrow[4] = {0, 1, 2, 3};
 int linep1 = 6;
 int linep2 = 25;
 int linerow[8] = {0, 1, 2, 3, 4, 5, 6, 7};
 int score1 = 0;
 int score2 = 0;
+unsigned long previousBallTime = 0;   // Waktu terakhir bola diperbarui
+unsigned long previousPlayerTime = 0; // Waktu terakhir pemain diperbarui
+const int ballInterval = 100;         // Interval pembaruan bola (ms)
+const int playerInterval = 50;        // Interval pembaruan pemain (ms)
 
 // Variabel untuk bola
 int ballX = 0; // Posisi awal X
@@ -143,6 +149,9 @@ const int unitsDigitMap[10][15][2] = {
 
 void resetBall();
 void drawLine(MD_MAX72XX *matrix, int *linerow, int linep1, int linep2);
+bool checkCollision(int ballX, int ballY, int playerX, int playerPosition, int rectrow[]);
+void displayLeftScore(MD_MAX72XX *matrix, int score);
+void displayRightScore(MD_MAX72XX *matrix, int score);
 
 
 void setup()
@@ -152,122 +161,120 @@ void setup()
   digitalWrite(VCC, HIGH);
   pinMode(GND, OUTPUT);
   digitalWrite(GND, LOW);
-  matrix_parola.begin(); // Initialize the parola
+  pinMode(POT_PLAYER1, INPUT);
+  pinMode(POT_PLAYER2, INPUT);
+  pinMode(vcc, OUTPUT);
+  digitalWrite(vcc, HIGH);
+  pinMode(gnd, OUTPUT);
+  digitalWrite(gnd, LOW);
+  
   // testDots();
+  matrix_parola.begin(); // Initialize the parola
   matrix_parola.setIntensity(1);
-  // matrix_parola.displayText("5024221021 - Agus Fuad Mudhofar", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+  matrix_parola.displayText("Welcome", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
 
   MD_MAX72XX *matrix = matrix_parola.getGraphicObject(); // Get the graphics object
-  // setPoint(row, col, true?); column 0 - 31, row 0 - 7
-  // Draw rectangle 1 (column 0+7)
-
-  // displayTensDigitLeft(matrix, 2);  // Tens digit (rows 0-2)
-  // displayUnitsDigitLeft(matrix, 0); // Units digit (rows 5-7)
 }
 
 void loop()
 {
+  if (matrix_parola.displayAnimate())
+  {
+    // matrix_parola.displayReset();
+  }
+  else {
+    return;
+  }
+
   MD_MAX72XX *matrix = matrix_parola.getGraphicObject();
-  matrix->clear();
-  // player1Position = map(analogRead(POT_PLAYER1), 0, 4095, 0, 4); // Rentang 0-3
-  // player2Position = map(analogRead(POT_PLAYER2), 0, 4095, 0, 4); // Rentang 0-3
-
-  // for (int i = 0; i < 4; i++)
-  // {
-  //   matrix->setPoint(rectrow[i], playerY, true); // Turn on each dot
-  // }
-
-  // // Draw rectangle 2 (column 31-7)
-  // for (int i = 0; i < 4; i++)
-  // {
-  //   matrix->setPoint(rectrow[i], player2Y, true);
-  // }
-
-  // drawLine(matrix, linerow, linep1, linep2);
-
-  // Update posisi bola
-  ballX += dx;
-  ballY += dy;
-
+  delay(100);
   
-  // Deteksi pantulan pada tepi atas dan bawah
-  if (ballY <= 0 || ballY >= maxRows - 1)
-    dy = -dy;
 
-  // Deteksi pantulan pada pemain 1
-  if (ballX == playerY && ballY >= rectrow[0] && ballY <= rectrow[3])
-  {
-    dx = -dx; // Balik arah horizontal
-    Serial.println("Pantul dari pemain 1!");
-  }
+  matrix->clear();
 
-  // Deteksi pantulan pada pemain 2
-  if (ballX == player2Y && ballY >= rectrow[0] && ballY <= rectrow[3])
-  {
-    dx = -dx; // Balik arah horizontal
-    Serial.println("Pantul dari pemain 2!");
-  }
+  unsigned long currentTime = millis();
 
-  // Deteksi gol
-  if (ballX < minCol)
+  // Pembaruan posisi pemain
+  if (currentTime - previousPlayerTime >= playerInterval)
   {
-    // Gol ke gawang kiri
-    scoreRight++;
-    resetBall();
-    Serial.println("Gol ke gawang kiri! Skor kanan: " + String(scoreRight));
-    Serial.println("Row: " + String(ballY) + ", Col: " + String(ballX));
-  }
-  else if (ballX > maxCol)
-  {
-    // Gol ke gawang kanan
-    scoreLeft++;
-    resetBall();
-    Serial.println("Gol ke gawang kanan! Skor kiri: " + String(scoreLeft));
-    Serial.println("Row: " + String(ballY) + ", Col: " + String(ballX));
-  }
+    previousPlayerTime = currentTime;
 
-  // Tampilkan bola baru
-  matrix->setPoint(ballY, ballX, true);
+    // Baca posisi potensiometer dan perbarui posisi pemain
+    player1Position = map(analogRead(POT_PLAYER1), 0, 4095, 0, 4);
+    // Serial.println("analog read: " + analogRead(POT_PLAYER1));
+    player2Position = map(analogRead(POT_PLAYER2), 0, 4095, 0, 4);
 
-  // // Gambar pemain 1 berdasarkan posisi
-  for (int i = 0; i < 4; i++)
-  {
-    if (player1Position + i < 8)
-    { // Pastikan tidak keluar dari layar
-      matrix->setPoint(rectrow[i] + player1Position, playerY, true);
+    displayLeftScore(matrix, scoreLeft);
+    displayRightScore(matrix, scoreRight);
+    // Gambar pemain 1 berdasarkan posisi
+    for (int i = 0; i < 4; i++)
+    {
+      if (player1Position + i < 8)
+      {
+        matrix->setPoint(rectrow[i] + player1Position, playerY, true);
+      }
+    }
+
+    // Gambar pemain 2 berdasarkan posisi
+    for (int i = 0; i < 4; i++)
+    {
+      if (player2Position + i < 8)
+      {
+        matrix->setPoint(rectrow[i] + player2Position, player2Y, true);
+      }
     }
   }
 
-  // Gambar pemain 2 berdasarkan posisi
-  for (int i = 0; i < 4; i++)
+  // Pembaruan posisi bola
+  if (currentTime - previousBallTime >= ballInterval)
   {
-    if (player2Position + i < 8)
-    { // Pastikan tidak keluar dari layar
-      matrix->setPoint(rectrow[i] + player2Position, player2Y, true);
+    previousBallTime = currentTime;
+
+    // Update posisi bola
+    ballX += dx;
+    ballY += dy;
+
+    // Deteksi pantulan pada tepi atas dan bawah
+    if (ballY <= 0 || ballY >= maxRows - 1)
+      dy = -dy;
+
+    // Deteksi pantulan pada pemain 1
+    if (checkCollision(ballX, ballY, playerY, player1Position, rectrow))
+    {
+      dx = -dx; // Balik arah horizontal
+      Serial.println("Pantul dari pemain 1!");
     }
+
+    // Deteksi pantulan pada pemain 2
+    if (checkCollision(ballX, ballY, player2Y, player2Position, rectrow))
+    {
+      dx = -dx; // Balik arah horizontal
+      Serial.println("Pantul dari pemain 2!");
+    }
+
+    // Deteksi gol
+    if (ballX < minCol)
+    {
+      // Gol ke gawang kiri
+      scoreRight++;
+      resetBall();
+      Serial.println("Gol ke gawang kiri! Skor kanan: " + String(scoreRight));
+    }
+    else if (ballX > maxCol)
+    {
+      // Gol ke gawang kanan
+      scoreLeft++;
+      resetBall();
+      Serial.println("Gol ke gawang kanan! Skor kiri: " + String(scoreLeft));
+    }
+
+    // Tampilkan bola baru
+    matrix->setPoint(ballY, ballX, true);
   }
 
-  // for (int i = 0; i < 10; i++)
-  // {
-  //   displayTensDigitLeft(matrix, i);
-  //   Serial.println("Display Units Digit Left : " + String(i));
-  //   delay(1000);
-  //   matrix->clear();
-  //   displayUnitsDigitLeft(matrix, i); // Units digit (rows 5-7)
-  //   Serial.println("Display Units Digit Left : " + String(i));
-  //   delay(1000);
-  //   matrix->clear();
-  //   displayTensDigitRight(matrix, i); // Tens digit (rows 0-2)
-  //   Serial.println("Display Tens Digit Right : " + String(i));
-  //   delay(1000);
-  //   matrix->clear();
-  //   displayUnitsDigitRight(matrix, i); // Units digit (rows 5-7)
-  //   Serial.println("Display Units Digit Right : " + String(i));
-  //   delay(1000);
-  //   matrix->clear();
-  // }
-  delay(200);
+  matrix->update(); // Perbarui tampilan LED tanpa delay
 }
+
 
 // Reset posisi bola setelah gol
 void resetBall()
@@ -452,4 +459,21 @@ void drawLine(MD_MAX72XX *matrix, int linerow[], int linep1, int linep2)
     matrix->setPoint(linerow[i], linep1, true);
     matrix->setPoint(linerow[i], linep2, true);
   }
+}
+
+bool checkCollision(int ballX, int ballY, int playerX, int playerPosition, int rectrow[])
+{
+  // Cek apakah bola berada di kolom pemain
+  if (ballX == playerX)
+  {
+    // Cek apakah bola berada dalam rentang baris pemain
+    for (int i = 0; i < 4; i++)
+    {
+      if (ballY == rectrow[i] + playerPosition)
+      {
+        return true; // Terdeteksi pantulan
+      }
+    }
+  }
+  return false; // Tidak ada pantulan
 }
