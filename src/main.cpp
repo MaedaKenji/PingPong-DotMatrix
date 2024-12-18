@@ -12,13 +12,13 @@
 // KIRI
 #define POT_PLAYER1 13 // Pin analog untuk potensiometer pemain 1
 #define POT_PLAYER2 12 // Pin analog untuk potensiometer pemain 2
-#define BUTTON2 14
 
 // KANAN
 #define DATA_PIN 15 // DIN pin
 #define CS_PIN 2    // CS pin
 #define CLK_PIN 4   // CLK pin
-#define BUTTON1 16
+const int BUTTON1 = 16;
+const int BUTTON2 = 14;
 
 // #define VCC 17
 // #define GND 16
@@ -48,7 +48,7 @@ int score2 = 0;
 unsigned long previousBallTime = 0;   // Waktu terakhir bola diperbarui
 unsigned long previousPlayerTime = 0; // Waktu terakhir pemain diperbarui
 unsigned long previousMatrixUpdate = 0;
-unsigned long matrixRefreshInterval = 50; // Misalnya 5 ms
+unsigned long matrixRefreshInterval = 20; // Misalnya 5 ms
 
 unsigned long button1PressTime = 0;        // Waktu saat BUTTON1 ditekan
 unsigned long button2PressTime = 0;        // Waktu saat BUTTON2 ditekan
@@ -56,11 +56,16 @@ bool button1Pressed = false;               // Status BUTTON1 ditekan
 bool button2Pressed = false;               // Status BUTTON2 ditekan
 const unsigned long smashThreshold = 2000; // 2 detik
 unsigned long currentTime;
-
-
+unsigned long previousAnimateTime = 0;
+int skipSpeed = 20;
 
 bool isWaitingForServe = true;
-int servingPlayer = 1; // Pemain yang akan melakukan serve (1 untuk Player 1, 2 untuk Player 2)
+bool animate = 1;
+bool isGame = 0;
+bool isOpening = 1;
+bool displayOnce = 0;
+bool skipNameDisplay = false; // Flag untuk melewati tampilan nama
+int servingPlayer = 1;        // Pemain yang akan melakukan serve (1 untuk Player 1, 2 untuk Player 2)
 
 // Variabel untuk bola
 int ballX = 0; // Posisi awal X
@@ -68,12 +73,12 @@ int ballY = 0; // Posisi awal Y
 int dx = 1;    // Arah horizontal (1: ke kanan, -1: ke kiri)
 int dy = 1;    // Arah vertikal (1: ke bawah, -1: ke atas)
 
-int normalBallSpeed = 100;     // Kecepatan normal bola dalam ms
-int smashSubSpeed = 10;        // Kecepatan cepat bola dalam ms
-int maximumBallSpeed = 10;     // Kecepatan maximum bola dalam ms
+int normalBallSpeed = 100;          // Kecepatan normal bola dalam ms
+int smashSubSpeed = 10;             // Kecepatan cepat bola dalam ms
+int maximumBallSpeed = 10;          // Kecepatan maximum bola dalam ms
 int ballInterval = normalBallSpeed; // Mengatur kecepatan bola
 int playerInterval = 100;           // Interval pembaruan pemain (ms)
-bool ballSpeedBoosted = false; // Status apakah kecepatan bola meningkat
+bool ballSpeedBoosted = false;      // Status apakah kecepatan bola meningkat
 int buttonPressed[2] = {};
 
 // Batas area
@@ -182,13 +187,6 @@ const int unitsDigitMap[10][15][2] = {
     {
         {5, 0}, {6, 0}, {7, 0}, {5, 1}, {5, 2}, {6, 2}, {7, 2}, {7, 3}, {7, 4}, {6, 4}, {5, 4}, {7, 1}, {-1, -1}}};
 
-// Font kustom 3x3, hanya row 4-6
-uint8_t customFont[][3] = {
-    {0x10, 0x10, 0x10}, // Karakter spasi (blank)
-    {0x1C, 0x14, 0x1C}, // Karakter "A"
-    {0x1C, 0x14, 0x1C}, // Karakter "B"
-    {0x1C, 0x10, 0x1C}, // Karakter "C"
-};
 
 void drawPlayer(MD_MAX72XX *matrix, int playerPosition, int playerX, int playerSize)
 {
@@ -457,23 +455,33 @@ bool checkCollision(int playerPosition, int playerYYY)
   return false; // Tidak ada pantulan
 }
 
-bool handleSmash(int playerPosition, int buttonPin, int buttonPressed)
+bool handleSmash(int playerPosition, int buttonPin, int &buttonPressed, int playerYYYY)
 {
+  // Serial.println("buttonPressed: " + String(buttonPressed) + ", DigitalRead: " + String(digitalRead(buttonPin)));
+  // Serial.println("Smash attempt detected.");
+  // Serial.println("ballY: " + String(ballY) + ", playerYYYY: " + String(playerYYYY));
+  // Serial.println("playerPosition: " + String(playerPosition) + ", buttonPin: " + String(buttonPin));
+
   // Cek apakah tombol ditekan
   if (digitalRead(buttonPin) == LOW && buttonPressed == 0)
   {
-    // Cek apakah bola berada dalam toleransi kolom pemain ±1
-    if (abs(ballX - playerY) <= 1)
+
+    // Serial.println("buttonPressed: " + String(buttonPressed) + ", DigitalRead: " + String(digitalRead(buttonPin)));
+
+    // Cek apakah bola berada dalam toleransi kolom pemain ±2
+    if (abs(ballY - playerYYYY) <= 2)
     {
       // Cek apakah bola berada dalam baris pemain
       for (int i = 0; i < playerSize; i++)
       {
         int playerRow = rectrow[i] + playerPosition;
-        if (ballY == playerRow)
+        // Serial.println("playerRow: " + String(playerRow) + ", ballX: " + String(ballX));
+        if (ballX == playerRow)
         {
           ballInterval -= smashSubSpeed; // Smash berhasil, percepat bola
-          buttonPressed = 1;             // Tandai tombol sudah ditekan
-          return true;                   // Smash terdeteksi
+          // Serial.println("Smash success! Ball interval updated: " + String(ballInterval));
+          buttonPressed = 1; // Tandai tombol sudah ditekan
+          return true;       // Smash terdeteksi
         }
       }
     }
@@ -482,7 +490,7 @@ bool handleSmash(int playerPosition, int buttonPin, int buttonPressed)
   // Reset tombol ketika dilepas
   if (digitalRead(buttonPin) == HIGH && buttonPressed == 1)
   {
-    buttonPressed = 0;
+    buttonPressed = 0; // Reset button state
   }
 
   return false; // Smash tidak terjadi
@@ -535,7 +543,6 @@ void waitingForServe()
       return;
     }
   }
-  
 }
 
 void updateBall()
@@ -554,8 +561,6 @@ void updateBall()
     // Serial.println("ballX: " + String(ballX));
     // Serial.println("ballY: " + String(ballY));
 
-
-
     // Deteksi pantulan pada tepi
     if (ballX <= 0 || ballX >= maxRows - 1)
     {
@@ -568,7 +573,6 @@ void updateBall()
     {
       // Perubahan dy berdasarkan posisi relatif bola terhadap paddle
       int relativePosition = ballX - player1Position;
-      Serial.println("ballX: " + String(ballX) + ", player1Position: " + String(player1Position) +", playerSize: " + String(playerSize/2) + +", relativePosition: " + String(relativePosition));
       if (relativePosition < (playerSize / 2))
       {
         dx = -1;
@@ -584,7 +588,6 @@ void updateBall()
     if (checkCollision(player2Position, player2Y))
     {
       int relativePosition = ballX - player2Position;
-      Serial.println("ballX: " + String(ballX) + ", player2Position: " + String(player2Position) + ", playerSize: " + String(playerSize / 2) + +", relativePosition: " + String(relativePosition));
       if (relativePosition < (playerSize / 2))
       {
         dx = -1;
@@ -596,17 +599,17 @@ void updateBall()
       dy = -dy;
     }
 
-    // Logika smash untuk pemain 1
-    // if (handleSmash(player1Position, BUTTON1, buttonPressed[0]))
-    // {
-    //   Serial.println("Smash Player 1!");
-    // }
+    if (handleSmash(player1Position, BUTTON1, buttonPressed[0], playerY)) // Logika smash untuk pemain 1
+    {
+      Serial.println("Button pressed: " + String(buttonPressed[0]));
+      Serial.println("Smash Player 1!");
+    }
 
-    // Logika smash untuk pemain 2
-    // if (handleSmash())
-    // {
-    //   Serial.println("Smash Player 2!");
-    // }
+    if (handleSmash(player2Position, BUTTON2, buttonPressed[1], player2Y)) // Logika smash untuk pemain 2
+    {
+      Serial.println("Button pressed: " + String(buttonPressed[1]));
+      Serial.println("Smash Player 2!");
+    }
 
     // Deteksi gol
     if (ballY < minCol)
@@ -679,7 +682,7 @@ void updateMatrix()
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(POT_PLAYER1, INPUT);
   pinMode(POT_PLAYER2, INPUT);
   pinMode(BUTTON1, INPUT_PULLUP); // Konfigurasi button dengan pull-up internal
@@ -693,37 +696,86 @@ void setup()
 
   // testDots();
   matrix_parola.begin(); // Initialize the parola
-  matrix_parola.setIntensity(0);
+  matrix_parola.setIntensity(10);
 
-  matrix_parola.displayText("Welcome", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
-  // matrix_parola.displayText(isWaitingForServe ? "P1 Serve" : "P2 Serve", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
-
+  matrix_parola.displayText("5024221021 - Agus Fuad Mudhofar", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
   MD_MAX72XX *matrix = matrix_parola.getGraphicObject(); // Get the graphics object
   matrix->clear();
 }
 
-
 void loop()
 {
+  // Serial.println("Animate: " + String(animate));
+  // Serial.println("Skip Name Display: " + String(skipNameDisplay));
   currentTime = millis();
-  if (isWaitingForServe)
+  if (!isGame)
   {
-    // Serial.println("Waiting for serve");
-    waitingForServe();
-    return;
+    if (isOpening)
+    {
+      if ((digitalRead(BUTTON1) == LOW || digitalRead(BUTTON2) == LOW) && !skipNameDisplay)
+      {
+        skipNameDisplay = true;       // Tandai untuk melewati animasi nama
+        animate = false;              // Hentikan animasi berjalan
+        matrix_parola.displayClear(); // Bersihkan layar
+
+        matrix_parola.displayText("Skipping Display!", PA_CENTER, skipSpeed, skipSpeed, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+        animate = true; // Aktifkan kembali animasi untuk teks baru
+      }
+
+      if (animate) // Selama animasi masih berjalan
+      {
+        if (matrix_parola.displayAnimate()) // Jika animasi selesai
+        {
+          animate = false; // Matikan animasi
+          if (!skipNameDisplay)
+          {
+            matrix_parola.displayReset(); // Reset jika tidak dilewati
+          }
+          isGame = true;
+          isOpening = false;
+        }
+      }
+    }
+    else {
+      if (animate) {
+        if (matrix_parola.displayAnimate()) {
+          animate = false;
+          isGame = false;
+          isOpening = false;
+        }
+      }
+    }
   }
-  else{
-    // Serial.println("Game loop");
-    // **Pembaharuan bola**
+
+  else
+  {
+    if (isWaitingForServe)
+    {
+      // Serial.println("Waiting for serve");
+      waitingForServe();
+      return;
+    }
+    
     updateBall();
     updatePlayerPosition();
     updateMatrix();
+
+    // // **Reset Condition**
+    if (ballInterval <= maximumBallSpeed) // Kecepatan bola maximum
+      ballInterval = maximumBallSpeed;
+    if (scoreLeft >= 30  || (scoreLeft >= 21 && scoreLeft - scoreRight >= 2))
+    { 
+      isGame = false;
+      isOpening = false;
+      matrix_parola.displayReset();
+      matrix_parola.displayText("Player 1 Win", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+    }
+    else if (scoreRight >= 30 || (scoreRight >= 21 && scoreRight - scoreLeft >= 2))
+    {
+      isGame = false;
+      isOpening = false;
+      matrix_parola.displayReset();
+      matrix_parola.displayText("Player 2 Win", PA_CENTER, 100, 100, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+    }
   }
-
-
-  // // **Reset Condition**
-  // // Kecepatan bola maximum
-  // if (ballInterval <= maximumBallSpeed)
-  //   ballInterval = maximumBallSpeed;
-  // Serial.println(ballInterval);
 }
